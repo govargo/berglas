@@ -16,9 +16,9 @@ spec:
         command: ["/bin/envserver"]
         env:
         - name: API_KEY
-          value: berglas://berglas-test-secrets/api-key
+          value: berglas://verification-iso-berglas-secret/api-key
         - name: TLS_KEY
-          value: berglas://berglas-test-secrets/tls-key?destination=tempfile
+          value: berglas://verification-iso-berglas-secret/tls-key?destination=tempfile
 
 ---
 apiVersion: v1
