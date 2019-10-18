@@ -76,7 +76,6 @@ func (m *BerglasMutator) mutateSecretData(ctx context.Context, data []byte) ([]b
 	decVal, isBerglasReference := m.hasBerglasReferences(data)
 	if !isBerglasReference {
 		m.logger.Infof("this secret resource doesnot have Barglas Reference.(i.e. berglas://${BUCKET_ID}/api-key)")
-		m.logger.Infof("this secret resource doesnot have Barglas Reference.(i.e. berglas://${BUCKET_ID}/api-key)")
 		return data, false
 	}
 
@@ -108,7 +107,7 @@ func (m *BerglasMutator) mutateSecretData(ctx context.Context, data []byte) ([]b
 }
 
 func (m *BerglasMutator) hasBerglasReferences(data []byte) (string, bool) {
-	decStr := byteToDecodeStr(data)
+	decStr := string(data)
 	m.logger.Infof("[DEBUG]secret.data: %s", decStr)
 	if berglas.IsReference(decStr) {
 		return decStr, true

@@ -30,6 +30,8 @@ func Test_Mutate_Berglas(t *testing.T) {
 			secretData[k] = encByte
 		}
 
+		secretData["API_KEY"] = []byte("YmVyZ2xhczovL3ZlcmlmaWNhdGlvbi1pc28tYmVyZ2xhcy1zZWNyZXQvYXBpLWtleQ==")
+
 		secret := corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "testsecret",
