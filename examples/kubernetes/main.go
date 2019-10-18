@@ -59,6 +59,10 @@ func (m *BerglasMutator) Mutate(ctx context.Context, obj metav1.Object) (bool, e
 		m.logger.Infof("The Secret resource %s is mutated", secret.GetObjectMeta().GetName())
 	}
 
+	if !mutated {
+		m.logger.Infof("there is no mutate")
+	}
+
 	for k, v := range secret.Data {
 		decstr := byteToDecodeStr(v)
 		m.logger.Infof("decrypt values, key: %s, value: %s", k, decstr)
@@ -100,11 +104,12 @@ func (m *BerglasMutator) mutateSecretData(ctx context.Context, data []byte) ([]b
 	plainBaseEnc := base64.StdEncoding.EncodeToString(plainData)
 	plainByte := []byte(plainBaseEnc)
 
-return plainByte, true
+	return plainByte, true
 }
 
 func (m *BerglasMutator) hasBerglasReferences(data []byte) (string, bool) {
 	decStr := byteToDecodeStr(data)
+	m.logger.Infof("[DEBUG]secret.data: %s", decStr)
 	if berglas.IsReference(decStr) {
 		return decStr, true
 	}
