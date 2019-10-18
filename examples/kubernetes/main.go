@@ -2,11 +2,13 @@ package foo
 
 import (
 	"context"
-	"fmt"
+	"encoding/base64"
+	"github.com/GoogleCloudPlatform/berglas/pkg/berglas"
+	"github.com/pkg/errors"
 	"net/http"
 	"os"
+	"strings"
 
-	"github.com/GoogleCloudPlatform/berglas/pkg/berglas"
 	kwhhttp "github.com/slok/kubewebhook/pkg/http"
 	kwhlog "github.com/slok/kubewebhook/pkg/log"
 	kwhmutating "github.com/slok/kubewebhook/pkg/webhook/mutating"
@@ -15,49 +17,12 @@ import (
 )
 
 const (
-	// berglasContainer is the default berglas container from which to pull the
-	// berglas binary.
-	berglasContainer = "gcr.io/berglas/berglas:latest"
-
-	// binVolumeName is the name of the volume where the berglas binary is stored.
-	binVolumeName = "berglas-bin"
-
-	// binVolumeMountPath is the mount path where the berglas binary can be found.
-	binVolumeMountPath = "/berglas/bin/"
+	berglasDecrypt = "colopl.jp/berglas/decrypt"
 )
 
-// binInitContainer is the container that pulls the berglas binary executable
-// into a shared volume mount.
-var binInitContainer = corev1.Container{
-	Name:            "copy-berglas-bin",
-	Image:           berglasContainer,
-	ImagePullPolicy: corev1.PullIfNotPresent,
-	Command: []string{"sh", "-c",
-		fmt.Sprintf("cp /bin/berglas %s", binVolumeMountPath)},
-	VolumeMounts: []corev1.VolumeMount{
-		{
-			Name:      binVolumeName,
-			MountPath: binVolumeMountPath,
-		},
-	},
-}
-
-// binVolume is the shared, in-memory volume where the berglas binary lives.
-var binVolume = corev1.Volume{
-	Name: binVolumeName,
-	VolumeSource: corev1.VolumeSource{
-		EmptyDir: &corev1.EmptyDirVolumeSource{
-			Medium: corev1.StorageMediumMemory,
-		},
-	},
-}
-
-// binVolumeMount is the shared volume mount where the berglas binary lives.
-var binVolumeMount = corev1.VolumeMount{
-	Name:      binVolumeName,
-	MountPath: binVolumeMountPath,
-	ReadOnly:  true,
-}
+var (
+	secretData = map[string][]byte{}
+)
 
 // BerglasMutator is a mutator.
 type BerglasMutator struct {
@@ -69,76 +34,80 @@ type BerglasMutator struct {
 func (m *BerglasMutator) Mutate(ctx context.Context, obj metav1.Object) (bool, error) {
 	m.logger.Infof("calling mutate")
 
-	pod, ok := obj.(*corev1.Pod)
+	secret, ok := obj.(*corev1.Secret)
 	if !ok {
 		return false, nil
 	}
 
 	mutated := false
 
-	for i, c := range pod.Spec.InitContainers {
-		c, didMutate := m.mutateContainer(ctx, &c)
+	for k, v := range secret.Data {
+		d, didMutate := m.mutateSecretData(ctx, v)
 		if didMutate {
 			mutated = true
-			pod.Spec.InitContainers[i] = *c
+			secretData[k] = d
 		}
 	}
 
-	for i, c := range pod.Spec.Containers {
-		c, didMutate := m.mutateContainer(ctx, &c)
-		if didMutate {
-			mutated = true
-			pod.Spec.Containers[i] = *c
-		}
-	}
-
-	// If any of the containers requested berglas secrets, mount the shared volume
-	// and ensure the berglas binary is available via an init container.
 	if mutated {
-		pod.Spec.Volumes = append(pod.Spec.Volumes, binVolume)
-		pod.Spec.InitContainers = append([]corev1.Container{binInitContainer},
-			pod.Spec.InitContainers...)
+		if len(secret.Annotations) == 0 {
+			secret.Annotations = make(map[string]string)
+		}
+		secret.Data = secretData
+		secret.Annotations[berglasDecrypt] = "true"
+		m.logger.Infof("The Secret resource %s is mutated", secret.GetObjectMeta().GetName())
+	}
+
+	for k, v := range secret.Data {
+		decstr := byteToDecodeStr(v)
+		m.logger.Infof("decrypt values, key: %s, value: %s", k, decstr)
 	}
 
 	return false, nil
 }
 
-// mutateContainer mutates the given container, updating the volume mounts and
-// command if it contains berglas references.
-func (m *BerglasMutator) mutateContainer(_ context.Context, c *corev1.Container) (*corev1.Container, bool) {
-	// Ignore if there are no berglas references in the container.
-	if !m.hasBerglasReferences(c.Env) {
-		return c, false
+func (m *BerglasMutator) mutateSecretData(ctx context.Context, data []byte) ([]byte, bool) {
+	m.logger.Infof("start mutating of secret data")
+	decVal, isBerglasReference := m.hasBerglasReferences(data)
+	if !isBerglasReference {
+		m.logger.Infof("this secret resource doesnot have Barglas Reference.(i.e. berglas://${BUCKET_ID}/api-key)")
+		m.logger.Infof("this secret resource doesnot have Barglas Reference.(i.e. berglas://${BUCKET_ID}/api-key)")
+		return data, false
 	}
 
-	// Berglas prepends the command from the podspec. If there's no command in the
-	// podspec, there's nothing to append. Note: this is the command in the
-	// podspec, not a CMD or ENTRYPOINT in a Dockerfile.
-	if len(c.Command) == 0 {
-		m.logger.Warningf("cannot apply berglas to %s: container spec does not define a command", c.Name)
-		return c, false
+	bucket, object, err := parseRef(decVal)
+	m.logger.Debugf("Target Bucket: %s", bucket)
+	m.logger.Debugf("Target Object: %s", object)
+	if err != nil {
+		m.logger.Errorf("error parse berglas reference: %s", err)
+		os.Exit(1)
 	}
 
-	// Add the shared volume mount
-	c.VolumeMounts = append(c.VolumeMounts, binVolumeMount)
+	acessRequest := berglas.AccessRequest{
+		Bucket:     bucket,
+		Object:     object,
+		Generation: 0,
+	}
 
-	// Prepend the command with berglas exec --local --
-	original := append(c.Command, c.Args...)
-	c.Command = []string{binVolumeMountPath + "berglas"}
-	c.Args = append([]string{"exec", "--local", "--"}, original...)
+	plainData, err := berglas.Access(ctx, &acessRequest)
+	if err != nil {
+		m.logger.Errorf("error decrypt secret by berglas: %s", err)
+		os.Exit(1)
+	}
+	m.logger.Infof("berglas secret has been decrypted")
 
-	return c, true
+	plainBaseEnc := base64.StdEncoding.EncodeToString(plainData)
+	plainByte := []byte(plainBaseEnc)
+
+return plainByte, true
 }
 
-// hasBerglasReferences parses the environment and returns true if any of the
-// environment variables includes a berglas reference.
-func (m *BerglasMutator) hasBerglasReferences(env []corev1.EnvVar) bool {
-	for _, e := range env {
-		if berglas.IsReference(e.Value) {
-			return true
-		}
+func (m *BerglasMutator) hasBerglasReferences(data []byte) (string, bool) {
+	decStr := byteToDecodeStr(data)
+	if berglas.IsReference(decStr) {
+		return decStr, true
 	}
-	return false
+	return "", false
 }
 
 // webhookHandler is the http.Handler that responds to webhooks
@@ -170,3 +139,24 @@ func webhookHandler() http.Handler {
 
 // F is the exported webhook for the function to bind.
 var F = webhookHandler().ServeHTTP
+
+// parseRef parses a secret ref into a bucket, secret path, and any errors.
+func parseRef(s string) (string, string, error) {
+	s = strings.TrimPrefix(s, "gs://")
+	s = strings.TrimPrefix(s, "berglas://")
+
+	ss := strings.SplitN(s, "/", 2)
+	if len(ss) < 2 {
+		return "", "", errors.Errorf("secret does not match format gs://<bucket>/<secret> or the format berglas://<bucket>/<secret>: %s", s)
+	}
+
+	return ss[0], ss[1], nil
+}
+
+func byteToDecodeStr(b []byte) string {
+	str := string(b)
+	dec, _ := base64.StdEncoding.DecodeString(str)
+	decStr := string(dec)
+
+	return decStr
+}
