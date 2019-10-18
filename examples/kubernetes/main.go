@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	berglasDecrypt = "colopl.jp/berglas/decrypt"
+	berglasDecrypt = "colopl.jp.berglas.decrypt"
 )
 
 var (
