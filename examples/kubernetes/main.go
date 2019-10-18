@@ -119,7 +119,7 @@ func webhookHandler() http.Handler {
 
 	mcfg := kwhmutating.WebhookConfig{
 		Name: "berglasSecrets",
-		Obj:  &corev1.Pod{},
+		Obj:  &corev1.Secret{},
 	}
 
 	// Create the wrapping webhook
