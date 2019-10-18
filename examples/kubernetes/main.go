@@ -100,8 +100,9 @@ func (m *BerglasMutator) mutateSecretData(ctx context.Context, data []byte) ([]b
 	}
 	m.logger.Infof("berglas secret has been decrypted")
 
-	plainBaseEnc := base64.StdEncoding.EncodeToString(plainData)
-	plainByte := []byte(plainBaseEnc)
+	//plainBaseEnc := base64.StdEncoding.EncodeToString(plainData)
+	//plainByte := []byte(plainBaseEnc)
+	plainByte := []byte(plainData)
 
 	return plainByte, true
 }
