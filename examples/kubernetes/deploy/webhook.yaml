@@ -15,4 +15,4 @@ webhooks:
   - operations: ["CREATE"]
     apiGroups: [""]
     apiVersions: ["v1"]
-    resources: ["pods"]
+    resources: ["secrets"]
