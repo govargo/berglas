@@ -2,7 +2,6 @@ package foo
 
 import (
 	"context"
-	"encoding/base64"
 	kwhlog "github.com/slok/kubewebhook/pkg/log"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,13 +23,15 @@ func Test_Mutate_Berglas(t *testing.T) {
 		mutator := &BerglasMutator{logger: logger}
 		secretData := map[string][]byte{}
 
-		for k, v := range testData {
-			encStr := base64.StdEncoding.EncodeToString([]byte(v))
-			encByte := []byte(encStr)
-			secretData[k] = encByte
-		}
+		//for k, v := range testData {
+		//	encStr := base64.StdEncoding.EncodeToString([]byte(v))
+		//	encByte := []byte(encStr)
+		//	secretData[k] = encByte
+		//}
 
-		secretData["API_KEY"] = []byte("YmVyZ2xhczovL3ZlcmlmaWNhdGlvbi1pc28tYmVyZ2xhcy1zZWNyZXQvYXBpLWtleQ==")
+		for k, _ := range testData {
+			secretData[k] = []byte(testData[k])
+		}
 
 		secret := corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
@@ -69,9 +70,9 @@ func Test_Mutate_BerglasLess(t *testing.T) {
 		secretData := map[string][]byte{}
 
 		for k, v := range testData {
-			encStr := base64.StdEncoding.EncodeToString([]byte(v))
-			encByte := []byte(encStr)
-			secretData[k] = encByte
+			//encStr := base64.StdEncoding.EncodeToString([]byte(v))
+			//encByte := []byte(encStr)
+			secretData[k] = []byte(v)
 		}
 
 		secret := corev1.Secret{

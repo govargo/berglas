@@ -64,7 +64,7 @@ func (m *BerglasMutator) Mutate(ctx context.Context, obj metav1.Object) (bool, e
 	}
 
 	for k, v := range secret.Data {
-		decstr := byteToDecodeStr(v)
+		decstr := string(v)
 		m.logger.Infof("decrypt values, key: %s, value: %s", k, decstr)
 	}
 
