@@ -37,7 +37,7 @@ func (m *BerglasMutator) Mutate(ctx context.Context, obj metav1.Object) (bool, e
 	secret, ok := obj.(*corev1.Secret)
 	if !ok {
 		m.logger.Errorf("error happens when cast object to secret")
-		return false, nil
+		return true, nil
 	}
 
 	mutated := false
@@ -45,7 +45,7 @@ func (m *BerglasMutator) Mutate(ctx context.Context, obj metav1.Object) (bool, e
 	for k, v := range secret.Data {
 		d, didMutate, err := m.mutateSecretData(ctx, v)
 		if err != nil {
-			return false, err
+			return true, err
 		}
 		if didMutate {
 			mutated = true
