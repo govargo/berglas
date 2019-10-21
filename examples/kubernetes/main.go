@@ -43,7 +43,10 @@ func (m *BerglasMutator) Mutate(ctx context.Context, obj metav1.Object) (bool, e
 	mutated := false
 
 	for k, v := range secret.Data {
-		d, didMutate := m.mutateSecretData(ctx, v)
+		d, didMutate, err := m.mutateSecretData(ctx, v)
+		if err != nil {
+			return false, err
+		}
 		if didMutate {
 			mutated = true
 			secretData[k] = d
@@ -67,12 +70,12 @@ func (m *BerglasMutator) Mutate(ctx context.Context, obj metav1.Object) (bool, e
 	return false, nil
 }
 
-func (m *BerglasMutator) mutateSecretData(ctx context.Context, data []byte) ([]byte, bool) {
+func (m *BerglasMutator) mutateSecretData(ctx context.Context, data []byte) ([]byte, bool, error) {
 	m.logger.Debugf("start mutating of secret data")
 	decVal, isBerglasReference := m.hasBerglasReferences(data)
 	if !isBerglasReference {
 		m.logger.Infof("this secret resource does not have Barglas Reference.(i.e. berglas://${BUCKET_ID}/api-key)")
-		return data, false
+		return data, false, nil
 	}
 
 	bucket, object, err := parseRef(decVal)
@@ -92,12 +95,12 @@ func (m *BerglasMutator) mutateSecretData(ctx context.Context, data []byte) ([]b
 	plainData, err := berglas.Access(ctx, &acessRequest)
 	if err != nil {
 		m.logger.Errorf("error decrypt secret by berglas: %s", err)
-		os.Exit(1)
+		return nil, false, err
 	}
 	m.logger.Debugf("berglas secret has been decrypted")
 	plainByte := []byte(plainData)
 
-	return plainByte, true
+	return plainByte, true, nil
 }
 
 func (m *BerglasMutator) hasBerglasReferences(data []byte) (string, bool) {
