@@ -23,12 +23,6 @@ func Test_Mutate_Berglas(t *testing.T) {
 		mutator := &BerglasMutator{logger: logger}
 		secretData := map[string][]byte{}
 
-		//for k, v := range testData {
-		//	encStr := base64.StdEncoding.EncodeToString([]byte(v))
-		//	encByte := []byte(encStr)
-		//	secretData[k] = encByte
-		//}
-
 		for k, _ := range testData {
 			secretData[k] = []byte(testData[k])
 		}
@@ -70,8 +64,6 @@ func Test_Mutate_BerglasLess(t *testing.T) {
 		secretData := map[string][]byte{}
 
 		for k, v := range testData {
-			//encStr := base64.StdEncoding.EncodeToString([]byte(v))
-			//encByte := []byte(encStr)
 			secretData[k] = []byte(v)
 		}
 
