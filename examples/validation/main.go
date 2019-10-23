@@ -36,6 +36,7 @@ func (v *BerglasValidator) Validate(ctx context.Context, obj metav1.Object) (boo
 				Valid:   false,
 				Message: fmt.Sprintf("the secret data: %s invalid berglas reference. the data cannot be decrypted.", key),
 			}
+			v.logger.Infof("secretData is invalid.")
 			return false, res, nil
 		}
 	}
