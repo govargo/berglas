@@ -2,7 +2,6 @@ package foo
 
 import (
 	"context"
-	"encoding/base64"
 	"github.com/GoogleCloudPlatform/berglas/pkg/berglas"
 	"github.com/pkg/errors"
 	"net/http"
@@ -37,7 +36,7 @@ func (m *BerglasMutator) Mutate(ctx context.Context, obj metav1.Object) (bool, e
 	secret, ok := obj.(*corev1.Secret)
 	if !ok {
 		m.logger.Errorf("error happens when cast object to secret")
-		return true, nil
+		return false, nil
 	}
 
 	mutated := false
@@ -45,7 +44,7 @@ func (m *BerglasMutator) Mutate(ctx context.Context, obj metav1.Object) (bool, e
 	for k, v := range secret.Data {
 		d, didMutate, err := m.mutateSecretData(ctx, v)
 		if err != nil {
-			return true, err
+			return false, err
 		}
 		if didMutate {
 			mutated = true
@@ -72,13 +71,13 @@ func (m *BerglasMutator) Mutate(ctx context.Context, obj metav1.Object) (bool, e
 
 func (m *BerglasMutator) mutateSecretData(ctx context.Context, data []byte) ([]byte, bool, error) {
 	m.logger.Debugf("start mutating of secret data")
-	decVal, isBerglasReference := m.hasBerglasReferences(data)
+	secretVal, isBerglasReference := m.hasBerglasReferences(data)
 	if !isBerglasReference {
-		m.logger.Infof("this secret resource does not have Barglas Reference.(i.e. berglas://${BUCKET_ID}/api-key)")
+		m.logger.Infof("this secret resource does not have Berglas Reference.(i.e. berglas://${BUCKET_ID}/api-key)")
 		return data, false, nil
 	}
 
-	bucket, object, err := parseRef(decVal)
+	bucket, object, err := parseRef(secretVal)
 	m.logger.Debugf("Target Bucket: %s", bucket)
 	m.logger.Debugf("Target Object: %s", object)
 	if err != nil {
@@ -104,11 +103,24 @@ func (m *BerglasMutator) mutateSecretData(ctx context.Context, data []byte) ([]b
 }
 
 func (m *BerglasMutator) hasBerglasReferences(data []byte) (string, bool) {
-	decStr := string(data)
-	if berglas.IsReference(decStr) {
-		return decStr, true
+	secretVal := string(data)
+	if berglas.IsReference(secretVal) {
+		return secretVal, true
 	}
 	return "", false
+}
+
+// parseRef parses a secret ref into a bucket, secret path, and any errors.
+func parseRef(s string) (string, string, error) {
+	s = strings.TrimPrefix(s, "gs://")
+	s = strings.TrimPrefix(s, "berglas://")
+
+	ss := strings.SplitN(s, "/", 2)
+	if len(ss) < 2 {
+		return "", "", errors.Errorf("secret does not match format gs://<bucket>/<secret> or the format berglas://<bucket>/<secret>: %s", s)
+	}
+
+	return ss[0], ss[1], nil
 }
 
 // webhookHandler is the http.Handler that responds to webhooks
@@ -140,24 +152,3 @@ func webhookHandler() http.Handler {
 
 // F is the exported webhook for the function to bind.
 var F = webhookHandler().ServeHTTP
-
-// parseRef parses a secret ref into a bucket, secret path, and any errors.
-func parseRef(s string) (string, string, error) {
-	s = strings.TrimPrefix(s, "gs://")
-	s = strings.TrimPrefix(s, "berglas://")
-
-	ss := strings.SplitN(s, "/", 2)
-	if len(ss) < 2 {
-		return "", "", errors.Errorf("secret does not match format gs://<bucket>/<secret> or the format berglas://<bucket>/<secret>: %s", s)
-	}
-
-	return ss[0], ss[1], nil
-}
-
-func byteToDecodeStr(b []byte) string {
-	str := string(b)
-	dec, _ := base64.StdEncoding.DecodeString(str)
-	decStr := string(dec)
-
-	return decStr
-}

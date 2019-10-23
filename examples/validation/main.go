@@ -2,16 +2,16 @@ package foo
 
 import (
 	"context"
-"fmt"
-"github.com/GoogleCloudPlatform/berglas/pkg/berglas"
-"net/http"
-"os"
+	"fmt"
+	"github.com/GoogleCloudPlatform/berglas/pkg/berglas"
+	"net/http"
+	"os"
 
-kwhhttp "github.com/slok/kubewebhook/pkg/http"
-kwhlog "github.com/slok/kubewebhook/pkg/log"
-kwhvalidating "github.com/slok/kubewebhook/pkg/webhook/validating"
-corev1 "k8s.io/api/core/v1"
-metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kwhhttp "github.com/slok/kubewebhook/pkg/http"
+	kwhlog "github.com/slok/kubewebhook/pkg/log"
+	kwhvalidating "github.com/slok/kubewebhook/pkg/webhook/validating"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type BerglasValidator struct {
@@ -52,16 +52,16 @@ func (v *BerglasValidator) validateSecretData(ctx context.Context, data []byte) 
 	v.logger.Debugf("start validating of secret data")
 	isBerglasReference := v.hasBerglasReferences(data)
 	if !isBerglasReference {
-		v.logger.Infof("this secret resource does not have Barglas Reference.(i.e. berglas://${BUCKET_ID}/api-key)")
 		return false
 	}
 
+	v.logger.Infof("this secret resource has Berglas Reference(i.e. berglas://${BUCKET_ID}/api-key). the Berglas data must be decrypted.")
 	return true
 }
 
 func (v *BerglasValidator) hasBerglasReferences(data []byte) (bool) {
-	decStr := string(data)
-	if berglas.IsReference(decStr) {
+	secretVal := string(data)
+	if berglas.IsReference(secretVal) {
 		return true
 	}
 	return false
