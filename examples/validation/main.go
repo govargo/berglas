@@ -26,7 +26,7 @@ func (v *BerglasValidator) Validate(ctx context.Context, obj metav1.Object) (boo
 	secret, ok := obj.(*corev1.Secret)
 	if !ok {
 		v.logger.Errorf("error happens when cast object to secret")
-		return false, kwhvalidating.ValidatorResult{}, fmt.Errorf("not an ingress")
+		return false, kwhvalidating.ValidatorResult{}, fmt.Errorf("not an secret")
 	}
 
 	for key, val := range secret.Data {
